@@ -149,6 +149,12 @@ const server = http.createServer((req, res) => {
       return res.end('list not found');
     }
     const fmt = (url.searchParams.get('format') || 'html').toLowerCase();
+    const flag = (k, def) => {
+      const v = url.searchParams.get(k);
+      return v === null ? def : v !== '0' && v !== 'false';
+    };
+    const opts = { qty: flag('qty', true), steps: flag('steps', true),
+      notes: flag('notes', true), openOnly: flag('open', false) };
     const safe = list.name.replace(/[^\w\d ·.-]+/g, '').trim().replace(/\s+/g, '-') || 'worklist';
     const day = new Date().toISOString().slice(0, 10);
 
@@ -157,14 +163,14 @@ const server = http.createServer((req, res) => {
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': `attachment; filename="${safe}-${day}.csv"`,
       });
-      return res.end(report.csv(list));
+      return res.end(report.csv(list, opts));
     }
     if (fmt === 'txt') {
       res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
-      return res.end(report.text(list));
+      return res.end(report.text(list, opts));
     }
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-    return res.end(report.html(list));
+    return res.end(report.html(list, opts));
   }
 
   if (url.pathname === '/api/snapshots' && req.method === 'GET') {

@@ -342,6 +342,11 @@
     background:var(--panel);border:1px solid var(--line);white-space:nowrap}
   .pop .qk button:hover{border-color:var(--accent);background:#222a38}
   .pop .sepline{height:1px;background:var(--line);margin:5px 8px}
+  .pop .opt{display:flex;align-items:center;gap:9px;padding:7px 11px;border-radius:8px;cursor:pointer;
+    font-size:13px;user-select:none}
+  .pop .opt:hover{background:#222a38}
+  .pop .opt input{accent-color:var(--accent);width:15px;height:15px;flex:none;margin:0}
+  .pop .opt span.sub{margin-left:auto;font-size:11px;color:var(--faint)}
   .chip.auto span.tx{opacity:.92}
   .litem .pl{font-size:9px;letter-spacing:.4px;color:var(--accent2);border:1px solid rgba(122,162,255,.3);
     border-radius:5px;padding:1px 4px;background:rgba(91,140,255,.1);font-weight:640;flex:none}
@@ -1334,6 +1339,11 @@ $('#clearBtn').onclick=()=>{
   l.tasks=l.tasks.filter(t=>!t.done); save(n+' completed rows cleaned up'); render();
   toast(n+' cleaned up', {label:'Undo', fn:undo});
 };
+// what the export should contain — remembered per browser
+const RPT={qty:true,steps:true,notes:true,openOnly:false};
+try{ Object.assign(RPT, JSON.parse(localStorage.getItem('wl_rpt')||'{}')); }catch(_){}
+const saveRpt=()=>{ try{ localStorage.setItem('wl_rpt',JSON.stringify(RPT)); }catch(_){} };
+
 $('#planBtn').onclick=e=>{ e.stopPropagation(); planPopover(e.currentTarget); };
 
 $('#shareBtn').onclick=async e=>{
@@ -1341,20 +1351,36 @@ $('#shareBtn').onclick=async e=>{
   const l=list(); if(!l) return;
   if(dirty) await push();                 // make sure the server has your latest state first
   const base='/report?list='+encodeURIComponent(l.id);
+  const qs=()=>`&qty=${RPT.qty?1:0}&steps=${RPT.steps?1:0}&notes=${RPT.notes?1:0}&open=${RPT.openOnly?1:0}`;
   const pop=document.createElement('div'); pop.className='pop'; pop.style.minWidth='250px';
   pop.onclick=ev=>ev.stopPropagation();
-  pop.innerHTML='<div class="hd">Share progress</div>';
+  pop.innerHTML='<div class="hd">Include</div>';
+  const SG=stagesOf(l);
+  const toggles=[
+    ['qty','Quantities','19×'],
+    SG?['steps','Step columns',SG.join(' · ')]:null,
+    ['notes','Notes',''],
+    ['openOnly','Only what is left','hide completed'],
+  ].filter(Boolean);
+  toggles.forEach(([k,label,sub])=>{
+    const row=document.createElement('label'); row.className='opt';
+    row.innerHTML=`<input type="checkbox"${RPT[k]?' checked':''}><span>${esc(label)}</span>`
+      +(sub?`<span class="sub">${esc(sub)}</span>`:'');
+    row.querySelector('input').onchange=ev=>{ RPT[k]=ev.target.checked; saveRpt(); };
+    pop.appendChild(row);
+  });
+  pop.insertAdjacentHTML('beforeend','<div class="sepline"></div>');
   const item=(icon,label,sub,fn)=>{
     const b=document.createElement('button');
     b.innerHTML=`<span class="em">${icon}</span><span>${label}<br>
       <span style="font-size:11px;color:var(--faint)">${sub}</span></span>`;
     b.onclick=fn; pop.appendChild(b);
   };
-  item('🖨','Open report','clean overview — ⌘P for PDF',()=>{ window.open(base,'_blank'); closePop(); });
-  item('📄','Download CSV','for Excel or Smartsheet',()=>{ window.location=base+'&format=csv'; closePop(); });
+  item('🖨','Open report','clean overview — ⌘P for PDF',()=>{ window.open(base+qs(),'_blank'); closePop(); });
+  item('📄','Download CSV','for Excel or Smartsheet',()=>{ window.location=base+qs()+'&format=csv'; closePop(); });
   item('📋','Copy as text','to paste into an email',async()=>{
     try{
-      const txt=await (await fetch(base+'&format=txt')).text();
+      const txt=await (await fetch(base+qs()+'&format=txt')).text();
       await navigator.clipboard.writeText(txt);
       toast('Summary copied — ready to paste');
     }catch(_){ toast('Copying failed'); }
@@ -1362,7 +1388,7 @@ $('#shareBtn').onclick=async e=>{
   });
   pop.insertAdjacentHTML('beforeend',
     '<div class="sepline"></div><div class="hd" style="text-transform:none;letter-spacing:0;font-size:11px;'
-    +'line-height:1.5;color:var(--faint)">The report shows how many units are done per step.</div>');
+    +'line-height:1.5;color:var(--faint)">Your choices are remembered for next time.</div>');
   document.body.appendChild(pop);
   const r=e.currentTarget.getBoundingClientRect();
   pop.style.top=Math.min(r.bottom+6, innerHeight-pop.offsetHeight-10)+'px';

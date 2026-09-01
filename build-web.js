@@ -154,7 +154,8 @@ rep(
 /* ---- 6. reports built in the browser ---- */
 rep(
   `  if(dirty) await push();                 // make sure the server has your latest state first
-  const base='/report?list='+encodeURIComponent(l.id);`,
+  const base='/report?list='+encodeURIComponent(l.id);
+  const qs=()=>\`&qty=\${RPT.qty?1:0}&steps=\${RPT.steps?1:0}&notes=\${RPT.notes?1:0}&open=\${RPT.openOnly?1:0}\`;`,
   `  if(dirty) await push();
   const stamp=new Date().toISOString().slice(0,10);
   const safe=(l.name.replace(/[^\\w\\d .-]+/g,'').trim().replace(/\\s+/g,'-')||'worklist');`,
@@ -162,11 +163,11 @@ rep(
 );
 
 rep(
-  `  item('🖨','Open report','clean overview — ⌘P for PDF',()=>{ window.open(base,'_blank'); closePop(); });
-  item('📄','Download CSV','for Excel or Smartsheet',()=>{ window.location=base+'&format=csv'; closePop(); });
+  `  item('🖨','Open report','clean overview — ⌘P for PDF',()=>{ window.open(base+qs(),'_blank'); closePop(); });
+  item('📄','Download CSV','for Excel or Smartsheet',()=>{ window.location=base+qs()+'&format=csv'; closePop(); });
   item('📋','Copy as text','to paste into an email',async()=>{
     try{
-      const txt=await (await fetch(base+'&format=txt')).text();
+      const txt=await (await fetch(base+qs()+'&format=txt')).text();
       await navigator.clipboard.writeText(txt);
       toast('Summary copied — ready to paste');
     }catch(_){ toast('Copying failed'); }
@@ -174,15 +175,15 @@ rep(
   });`,
   `  item('🖨','Open report','clean overview — ⌘P for PDF',()=>{
     const w=window.open('','_blank');
-    if(w){ w.document.write(reportHtml(l)); w.document.close(); }
-    else downloadBlob(safe+'-'+stamp+'.html','text/html',reportHtml(l));
+    if(w){ w.document.write(reportHtml(l,RPT)); w.document.close(); }
+    else downloadBlob(safe+'-'+stamp+'.html','text/html',reportHtml(l,RPT));
     closePop();
   });
   item('📄','Download CSV','for Excel or Smartsheet',()=>{
-    downloadBlob(safe+'-'+stamp+'.csv','text/csv;charset=utf-8',reportCsv(l)); closePop();
+    downloadBlob(safe+'-'+stamp+'.csv','text/csv;charset=utf-8',reportCsv(l,RPT)); closePop();
   });
   item('📋','Copy as text','to paste into an email',async()=>{
-    try{ await navigator.clipboard.writeText(reportText(l)); toast('Summary copied — ready to paste'); }
+    try{ await navigator.clipboard.writeText(reportText(l,RPT)); toast('Summary copied — ready to paste'); }
     catch(_){ toast('Copying failed'); }
     closePop();
   });`,

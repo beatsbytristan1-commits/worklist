@@ -246,34 +246,39 @@ function parseCsvWeb(text) {
 }
 
 /* ---------- reports, generated in the browser ---------- */
-function reportData(l) {
-  const stages = stagesOf(l);
-  const tasks = l.tasks || [];
-  const units = tasks.reduce((a, t) => a + qtyOf(t), 0);
-  const doneRows = tasks.filter((t) => t.done).length;
+function reportData(l, opts) {
+  const o = { qty: true, steps: true, notes: true, openOnly: false, ...(opts || {}) };
+  const full = stagesOf(l);
+  const stages = o.steps ? full : null;
+  const all = l.tasks || [];
+  const tasks = o.openOnly ? all.filter((t) => !t.done) : all;
+  const units = all.reduce((a, t) => a + qtyOf(t), 0);
+  const doneRows = all.filter((t) => t.done).length;
   const perStage = (stages || []).map((name, i) => ({
     name,
-    rows: tasks.filter((t) => stCount(t, i) >= qtyOf(t)).length,
-    units: tasks.reduce((a, t) => a + stCount(t, i), 0),
+    rows: all.filter((t) => stCount(t, i) >= qtyOf(t)).length,
+    units: all.reduce((a, t) => a + stCount(t, i), 0),
   }));
   const p = pct(l);
-  const started = tasks.filter((t) => !t.done && stages && stTicks(t, stages.length) > 0);
+  const started = tasks.filter((t) => !t.done && full && stTicks(t, full.length) > 0);
   const notStarted = tasks.filter((t) => !t.done && !started.includes(t));
-  return { stages, tasks, units, doneRows, perStage, pct: p, started, notStarted };
+  return { stages, tasks, all, units, doneRows, perStage, pct: p, started, notStarted, opts: o };
 }
 
-function reportHtml(l) {
-  const s = reportData(l);
+function reportHtml(l, opts) {
+  const s = reportData(l, opts);
+  const o = s.opts;
   const stamp = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const head = s.stages ? s.stages.map((n) => `<th class="num">${esc(n)}</th>`).join('') : '<th class="num">Status</th>';
+  const cols = (o.qty ? 1 : 0) + 1 + (s.stages ? s.stages.length : 1) + (o.notes ? 1 : 0);
   const rows = s.tasks.map((t) => {
     const q = qtyOf(t);
     const cells = s.stages
       ? s.stages.map((_, i) => { const c = stCount(t, i), full = c >= q;
           return `<td class="num ${full ? 'ok' : c > 0 ? 'part' : 'no'}">${q > 1 ? c + '/' + q : full ? '✓' : '—'}</td>`; }).join('')
       : `<td class="num ${t.done ? 'ok' : 'no'}">${t.done ? '✓' : '—'}</td>`;
-    return `<tr class="${t.done ? 'done' : ''}"><td class="qty">${t.qty != null && t.qty !== '' ? esc(t.qty) + '×' : ''}</td>
-      <td class="name">${esc(t.text)}</td>${cells}<td class="note">${esc(t.note || '')}</td></tr>`;
+    return `<tr class="${t.done ? 'done' : ''}">${o.qty ? `<td class="qty">${t.qty != null && t.qty !== '' ? esc(t.qty) + '×' : ''}</td>` : ''}
+      <td class="name">${esc(t.text)}</td>${cells}${o.notes ? `<td class="note">${esc(t.note || '')}</td>` : ''}</tr>`;
   }).join('');
   const stats = s.perStage.map((p2) => `<div class="stat"><div class="lbl">${esc(p2.name)}</div>
       <div class="val">${p2.rows}<span>/${s.tasks.length}</span></div>
@@ -312,35 +317,41 @@ padding:11px 18px;font-size:13.5px;font-weight:600;cursor:pointer;box-shadow:0 8
 </style></head><body><div class="page">
 <div class="bar-top"><div><h1>${esc(l.name)}</h1>
 <div class="sub">Staging progress · updated ${esc(stamp)}</div></div><div class="sp"></div>
-<div class="pct"><b>${s.pct}%</b><span>${s.doneRows} of ${s.tasks.length} complete</span></div></div>
+<div class="pct"><b>${s.pct}%</b><span>${s.doneRows} of ${s.all.length} complete</span></div></div>
 <div class="track"><i style="width:${s.pct}%"></i></div>
 ${stats ? `<div class="stats">${stats}</div>` : ''}
-<table><thead><tr><th></th><th>Item</th>${head}<th>Notes</th></tr></thead>
-<tbody>${rows || '<tr><td colspan="9">No rows.</td></tr>'}</tbody></table>
-<div class="foot">${s.units} units in total</div></div>
+<table><thead><tr>${o.qty ? '<th></th>' : ''}<th>Item</th>${head}${o.notes ? '<th>Notes</th>' : ''}</tr></thead>
+<tbody>${rows || `<tr><td colspan="${cols}">No rows.</td></tr>`}</tbody></table>
+<div class="foot">${s.units} units in total${o.openOnly ? ` · showing only the ${s.tasks.length} rows still open` : ''}</div></div>
 <button class="print" onclick="window.print()">Save as PDF / print</button></body></html>`;
 }
 
-function reportCsv(l) {
-  const s = reportData(l);
+function reportCsv(l, opts) {
+  const s = reportData(l, opts);
+  const o = s.opts;
   const cell = (v) => { const t = String(v ?? ''); return /[",;\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
-  const head = ['Item', 'Quantity'];
+  const head = ['Item'];
+  if (o.qty) head.push('Quantity');
   if (s.stages) s.stages.forEach((n) => head.push(n, n + ' %')); else head.push('Done');
-  head.push('Complete', 'Notes');
+  head.push('Complete');
+  if (o.notes) head.push('Notes');
   const lines = [head.map(cell).join(',')];
   s.tasks.forEach((t) => {
     const q = qtyOf(t);
-    const row = [t.text, t.qty != null && t.qty !== '' ? t.qty : ''];
+    const row = [t.text];
+    if (o.qty) row.push(t.qty != null && t.qty !== '' ? t.qty : '');
     if (s.stages) s.stages.forEach((_, i) => { const c = stCount(t, i); row.push(c, Math.round((c / q) * 100) + '%'); });
     else row.push(t.done ? 'yes' : 'no');
-    row.push(t.done ? 'yes' : 'no', t.note || '');
+    row.push(t.done ? 'yes' : 'no');
+    if (o.notes) row.push(t.note || '');
     lines.push(row.map(cell).join(','));
   });
   return '﻿' + lines.join('\r\n') + '\r\n';
 }
 
-function reportText(l) {
-  const s = reportData(l);
+function reportText(l, opts) {
+  const s = reportData(l, opts);
+  const o = s.opts;
   const stamp = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const out = [`${l.name.toUpperCase()} — ${s.pct}% complete`, `Updated: ${stamp}`, ''];
   if (s.perStage.length) {
@@ -348,16 +359,17 @@ function reportText(l) {
     out.push('');
   }
   const line = (t, mark) => {
-    const q = t.qty != null && t.qty !== '' ? `${t.qty}× ` : '';
+    const q = o.qty && t.qty != null && t.qty !== '' ? `${t.qty}× ` : '';
     const extra = s.stages && !t.done
       ? `  (${s.stages.map((n, i) => `${n.toLowerCase()} ${stCount(t, i)}/${qtyOf(t)}`).join(', ')})` : '';
-    return `  ${mark} ${q}${t.text}${extra}`;
+    const note = o.notes && t.note ? `  — ${t.note}` : '';
+    return `  ${mark} ${q}${t.text}${extra}${note}`;
   };
   const done = s.tasks.filter((t) => t.done);
   if (done.length) { out.push(`DONE (${done.length})`); done.forEach((t) => out.push(line(t, '[x]'))); out.push(''); }
   if (s.started.length) { out.push(`IN PROGRESS (${s.started.length})`); s.started.forEach((t) => out.push(line(t, '[~]'))); out.push(''); }
   if (s.notStarted.length) { out.push(`NOT STARTED (${s.notStarted.length})`); s.notStarted.forEach((t) => out.push(line(t, '[ ]'))); out.push(''); }
-  out.push(`Total: ${s.tasks.length} rows · ${s.units} units`);
+  out.push(`Total: ${s.all.length} rows · ${s.units} units`);
   return out.join('\n');
 }
 
