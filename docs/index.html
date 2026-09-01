@@ -748,13 +748,18 @@ function stCount(t,i){
 }
 const stTicks = (t,n) => { let c=0; for(let i=0;i<n;i++) c+=stCount(t,i); return c; };
 
-// set step i to a count; later steps can never be further along than earlier ones
+// do the steps run in order? (default yes)
+const chained = l => !l || l.chain !== false;
+
+// set step i to a count; with chained steps a later one can never run ahead of an earlier one
 function setCount(t,i,n,val){
   const q=qtyOf(t);
   t.sc=Array.from({length:n},(_,k)=>stCount(t,k));
   t.sc[i]=Math.max(0,Math.min(q,Math.round(val)||0));
-  for(let k=0;k<i;k++) t.sc[k]=Math.max(t.sc[k],t.sc[i]);
-  for(let k=i+1;k<n;k++) t.sc[k]=Math.min(t.sc[k],t.sc[i]);
+  if(chained(list())){
+    for(let k=0;k<i;k++) t.sc[k]=Math.max(t.sc[k],t.sc[i]);
+    for(let k=i+1;k<n;k++) t.sc[k]=Math.min(t.sc[k],t.sc[i]);
+  }
   t.st=t.sc.map(c=>c>=q);
   const all=t.st.every(Boolean);
   t.done=all; t.doneAt=all?Date.now():0;
@@ -1094,7 +1099,9 @@ function render(){
   if(STG && l.tasks.length){
     const hd=document.createElement('div'); hd.className='stagehead';
     STG.forEach((nm,i)=>{
-      const c=document.createElement('div'); c.className='sh'; c.title=nm+' — click to toggle the whole column';
+      const c=document.createElement('div'); c.className='sh';
+      c.title=nm+' — click to toggle the whole column'
+        +(chained(l)&&i>0?`\nMarking this also marks ${STG.slice(0,i).join(' and ')}`:'');
       c.innerHTML=`<b>${esc(nm.length>8?nm.slice(0,7)+'.':nm)}</b>`;
       c.onclick=()=>{
         const all=l.tasks.every(t=>stCount(t,i)>=qtyOf(t));
@@ -1580,6 +1587,17 @@ function planPopover(anchor){
           '<div class="hd" style="text-transform:none;letter-spacing:0;font-size:11px;line-height:1.5;color:var(--faint)">'
           +'First tick what you have on the bench, then what you have configured.</div>');
       } else {
+        const ch=document.createElement('label'); ch.className='opt';
+        ch.innerHTML=`<input type="checkbox"${chained(l)?' checked':''}><span>Steps run in order</span>`;
+        ch.title=chained(l)
+          ? 'Ticking a later step fills in the earlier ones'
+          : 'Every step is counted on its own';
+        ch.querySelector('input').onchange=ev=>{
+          l.chain=ev.target.checked; save('step order changed'); render();
+          toast(l.chain?'Later steps fill in the earlier ones':'Steps are counted independently');
+        };
+        wrap.appendChild(ch);
+        wrap.insertAdjacentHTML('beforeend','<div class="sepline"></div>');
         cur.forEach((nm,i)=>{
           const row=document.createElement('div'); row.className='stagerow';
           const inp=document.createElement('input'); inp.value=nm; inp.placeholder='step name';
@@ -1595,6 +1613,11 @@ function planPopover(anchor){
         ok.innerHTML='<span class="em">✓</span><span>Apply</span>';
         ok.onclick=()=>{ applyStages(l,cur.map(x=>x.trim()).filter(Boolean)); closePop(); };
         wrap.append(add,ok);
+        wrap.insertAdjacentHTML('beforeend',
+          '<div class="hd" style="text-transform:none;letter-spacing:0;font-size:11px;line-height:1.5;color:var(--faint)">'
+          +(chained(l)
+            ? 'In order: marking a later step also marks everything before it.'
+            : 'Independent: each step is ticked off on its own.')+'</div>');
       }
       place();
     };
