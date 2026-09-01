@@ -423,7 +423,10 @@
   .qty{flex:none;min-width:30px;height:22px;padding:0 7px;border-radius:7px;background:var(--panel2);
     border:1px solid var(--line2);font-size:11.5px;font-weight:700;color:var(--accent2);display:grid;
     place-items:center;font-variant-numeric:tabular-nums;outline:none;margin-top:1px}
-  .qty:focus{border-color:var(--accent);color:#fff}
+  .qty:focus{border-color:var(--accent);color:#fff;opacity:1}
+  .qty.empty{opacity:0;color:var(--faint);border-style:dashed;font-weight:600;transition:opacity .15s}
+  .task:hover .qty.empty{opacity:.65}
+  .qty.empty:hover{opacity:1;border-color:var(--accent)}
   .task.done .qty{color:var(--faint);border-color:var(--line)}
 
   /* ---------- import ---------- */
@@ -932,7 +935,9 @@ function taskEl(t){
         </button></div>`;
       }).join('')}</div>`
       : `<div class="check"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6.4l2.6 2.6L10 3.4" fill="none" stroke="#08130e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`}
-    ${t.qty!=null&&t.qty!==''?`<div class="qty" contenteditable="plaintext-only" spellcheck="false" title="Quantity — clear it to remove">${esc(t.qty)}</div>`:''}
+    ${(t.qty!=null&&t.qty!=='')
+      ? `<div class="qty" contenteditable="plaintext-only" spellcheck="false" title="Quantity — clear it to remove">${esc(t.qty)}</div>`
+      : (chk ? '<div class="qty empty" contenteditable="plaintext-only" spellcheck="false" title="Click to set a quantity">–</div>' : '')}
     <div class="body">
       <div class="txt" contenteditable="plaintext-only" spellcheck="false">${esc(t.text)}</div>
       ${dl?`<div class="meta"><span class="tag ${dl.cls}">◷ ${dl.txt}</span></div>`:''}
@@ -958,10 +963,16 @@ function taskEl(t){
   txt.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); txt.blur(); } if(e.key==='Escape'){ txt.textContent=t.text; txt.blur(); } };
   const qe=el.querySelector('.qty');
   if(qe){
-    qe.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); qe.blur(); } };
+    qe.onfocus=()=>{ if(qe.classList.contains('empty')) qe.textContent=''; };
+    qe.onkeydown=e=>{
+      if(e.key==='Enter'){ e.preventDefault(); qe.blur(); }
+      if(e.key==='Escape'){ qe.textContent=t.qty??'–'; qe.blur(); }
+    };
     qe.onblur=()=>{ const v=qe.textContent.trim();
-      const n=v===''?null:parseInt(v.replace(/[^\d-]/g,''),10);
-      t.qty=(n===null||isNaN(n))?null:n; save(); render(); };
+      const n=/^\d+$/.test(v.replace(/[^\d]/g,'')) ? parseInt(v.replace(/[^\d]/g,''),10) : null;
+      const next=(n===null||isNaN(n)||n<=0)?null:n;
+      if(next===(t.qty??null)){ render(); return; }
+      t.qty=next; save(next?'quantity set':'quantity removed'); render(); };
   }
   const nt=el.querySelector('.note');
   if(nt) nt.onblur=()=>{ t.note=nt.textContent.trim(); delete t._noteOpen; save(); };
@@ -1000,8 +1011,8 @@ function render(){
     : (pm==='none' ? 'List type and calendar placement'
                    : `Tasks without a date of their own ${PLANS[pm].hint}`);
   $('#addTask').placeholder = chk
-    ? 'Add a row…'
-    : 'New task…  use !  for important,  today / tomorrow / 12-09 for a date';
+    ? 'Add a row…  start with a number for a quantity, e.g. 15 iPhones'
+    : 'New task…  use !  for important,  4x for a quantity,  today / tomorrow for a date';
   // the filter buttons adapt to the list
   const SGf=stagesOf(l);
   const defs=[{f:'all',t:'All'},{f:'open',t:'Open'}];
@@ -1319,10 +1330,17 @@ $('#addTask').addEventListener('keydown',e=>{
   const raw=e.target.value.trim(); if(!raw||!list()) return;
   let star=false, s=raw;
   if(/(^|\s)!(\s|$)/.test(s)||/!$/.test(s)){ star=true; s=s.replace(/(^|\s)!(?=\s|$)/g,' ').replace(/!$/,'').trim(); }
-  const {text,due}=parseDue(s);
+  let {text,due}=parseDue(s);
   if(!text) return;
+  // "15 iPhones" or "4x Payment Terminals" -> quantity 15 / 4
+  let qty=null;
+  // "4x iPhones" works everywhere; a bare leading number only in checklists,
+  // capped at three digits so a year like "2026 planning" stays a name
+  let m=text.match(/^(\d{1,4})\s*[x×]\s+(.+)$/i);
+  if(!m && isCheck(list())) m=text.match(/^(\d{1,3})\s+(.+)$/);
+  if(m && +m[1]>0 && m[2].trim()){ qty=+m[1]; text=m[2].trim(); }
   const nst=(stagesOf(list())||[]).length;
-  list().tasks.unshift({id:uid('t'),text,done:false,star,due,end:'',qty:null,note:'',
+  list().tasks.unshift({id:uid('t'),text,done:false,star,due,end:'',qty,note:'',
     createdAt:Date.now(),doneAt:0,...(nst?{st:Array(nst).fill(false)}:{})});
   e.target.value=''; save(); render();
 });
