@@ -290,7 +290,7 @@ rep('/* ---------- boot ---------- */', extra + '\n\n/* ---------- boot --------
   applied.push('remove dead popover');
 }
 
-const out = path.join(ROOT, 'web');
+const out = path.join(ROOT, 'docs');
 fs.mkdirSync(out, { recursive: true });
 fs.writeFileSync(path.join(out, 'index.html'), s);
 for (const f of ['icon.png', 'icon-192.png', 'icon-512.png', 'manifest.json']) {
@@ -299,6 +299,6 @@ for (const f of ['icon.png', 'icon-192.png', 'icon-512.png', 'manifest.json']) {
 }
 fs.writeFileSync(path.join(out, '.nojekyll'), '');
 
-console.log('built web/index.html  (' + (fs.statSync(path.join(out, 'index.html')).size / 1024).toFixed(1) + ' kB)');
+console.log('built docs/index.html  (' + (fs.statSync(path.join(out, 'index.html')).size / 1024).toFixed(1) + ' kB)');
 console.log('patches applied: ' + applied.length);
 applied.forEach((a) => console.log('  ✓ ' + a));

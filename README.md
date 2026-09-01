@@ -25,14 +25,14 @@ public/index.html   the app (single source of truth)
 server.js           local zero-dependency server
 xlsx.js             minimal .xlsx reader, no dependencies
 report.js           progress report as HTML / CSV / text
-build-web.js        builds web/ for GitHub Pages from public/index.html
+build-web.js        builds docs/ for GitHub Pages from public/index.html
 web-extra.js        the GitHub-storage layer used by that build
 ```
 
 Rebuild the hosted version after changing the app:
 
 ```sh
-node build-web.js && git add web && git commit -m "rebuild" && git push
+node build-web.js && git add docs && git commit -m "rebuild" && git push
 ```
 
 No dependencies anywhere — Node's standard library only.
