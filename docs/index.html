@@ -751,8 +751,8 @@ function stCount(t,i){
 }
 const stTicks = (t,n) => { let c=0; for(let i=0;i<n;i++) c+=stCount(t,i); return c; };
 
-// do the steps run in order? (default yes)
-const chained = l => !l || l.chain !== false;
+// steps are independent unless a list explicitly asks for them to run in order
+const chained = l => !!l && l.chain === true;
 
 // set step i to a count; with chained steps a later one can never run ahead of an earlier one
 function setCount(t,i,n,val){
@@ -1606,13 +1606,14 @@ function planPopover(anchor){
           +'First tick what you have on the bench, then what you have configured.</div>');
       } else {
         const ch=document.createElement('label'); ch.className='opt';
-        ch.innerHTML=`<input type="checkbox"${chained(l)?' checked':''}><span>Steps run in order</span>`;
+        ch.innerHTML=`<input type="checkbox"${chained(l)?' checked':''}>`
+          +`<span>Steps run in order</span><span class="sub">off = independent</span>`;
         ch.title=chained(l)
-          ? 'Ticking a later step fills in the earlier ones'
-          : 'Every step is counted on its own';
+          ? 'Ticking a later step also fills in the earlier ones'
+          : 'Each step is counted entirely on its own';
         ch.querySelector('input').onchange=ev=>{
           l.chain=ev.target.checked; save('step order changed'); render();
-          toast(l.chain?'Later steps fill in the earlier ones':'Steps are counted independently');
+          toast(l.chain?'Later steps now fill in the earlier ones':'Every step counts on its own');
         };
         wrap.appendChild(ch);
         wrap.insertAdjacentHTML('beforeend','<div class="sepline"></div>');
@@ -1635,7 +1636,7 @@ function planPopover(anchor){
           '<div class="hd" style="text-transform:none;letter-spacing:0;font-size:11px;line-height:1.5;color:var(--faint)">'
           +(chained(l)
             ? 'In order: marking a later step also marks everything before it.'
-            : 'Independent: each step is ticked off on its own.')+'</div>');
+            : 'Independent: ticking one step changes nothing else on that row.')+'</div>');
       }
       place();
     };
