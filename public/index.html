@@ -417,6 +417,9 @@
     padding:6px 9px;font-size:12.5px;color:var(--text);outline:none}
   .pop .stagerow input:focus{border-color:var(--accent)}
   .pop .stagerow button{width:26px;flex:none;justify-content:center;color:var(--faint);padding:6px 0}
+  .pop .stagerow button.mv{width:22px;font-size:9px;border:1px solid var(--line);border-radius:7px}
+  .pop .stagerow button.mv:hover:not(:disabled){color:var(--accent2);border-color:var(--line2);background:var(--panel)}
+  .pop .stagerow button.mv:disabled{opacity:.25;pointer-events:none}
   .pop .stagerow button:hover{color:var(--bad);background:var(--panel)}
 
   /* ---------- quantities ---------- */
@@ -1506,20 +1509,30 @@ function autoPlanned(includeDone){
   return res;
 }
 
-function applyStages(l,st){
-  if(st.length<2){
+// `order[k]` says which old step column ends up at position k (-1 = brand new),
+// so renaming, reordering and removing all keep the counts attached to the right step.
+function applyStages(l,names,order){
+  const hadStages = Array.isArray(l.stages) && l.stages.length>1;
+  if(names.length<2){
     l.stages=null;
-    l.tasks.forEach(t=>{ if(t.st){ t.done=t.st.every(Boolean); } delete t.st; });
+    l.tasks.forEach(t=>{ if(t.st){ t.done=t.st.every(Boolean); } delete t.st; delete t.sc; });
   } else {
-    l.stages=st;
+    const n=names.length;
     l.tasks.forEach(t=>{
-      const old=t.st||[];
-      t.st=Array.from({length:st.length},(_,k)=> t.done ? true : !!old[k]);
+      const q=qtyOf(t);
+      const from=i=>{
+        if(i==null||i<0) return hadStages ? 0 : (t.done ? q : 0);   // a new step starts empty
+        if(t.sc && t.sc[i]!=null) return Math.max(0,Math.min(q,t.sc[i]));
+        return (t.st && t.st[i]) ? q : (t.done ? q : 0);
+      };
+      t.sc=Array.from({length:n},(_,k)=>from(order?order[k]:k));
+      t.st=t.sc.map(c=>c>=q);
       t.done=t.st.every(Boolean);
       if(!t.done) t.doneAt=0;
     });
+    l.stages=names;
   }
-  save(); render();
+  save('steps changed'); render();
 }
 
 function planPopover(anchor){
@@ -1550,7 +1563,8 @@ function planPopover(anchor){
 
   if(isCheck(l)){
     pop.insertAdjacentHTML('beforeend','<div class="sepline"></div><div class="hd">Steps per row</div>');
-    const cur=(Array.isArray(l.stages)?l.stages.slice():[]);
+    // {name, from} — `from` is the column this step came from, so counts travel with it
+    const cur=(Array.isArray(l.stages)?l.stages:[]).map((n,i)=>({name:n,from:i}));
     const wrap=document.createElement('div'); pop.appendChild(wrap);
     const place=()=>{ const rr=anchor.getBoundingClientRect();
       pop.style.top=Math.max(10,Math.min(rr.bottom+6, innerHeight-pop.offsetHeight-10))+'px'; };
@@ -1577,26 +1591,37 @@ function planPopover(anchor){
         };
         wrap.appendChild(ch);
         wrap.insertAdjacentHTML('beforeend','<div class="sepline"></div>');
-        cur.forEach((nm,i)=>{
+        cur.forEach((st,i)=>{
           const row=document.createElement('div'); row.className='stagerow';
-          const inp=document.createElement('input'); inp.value=nm; inp.placeholder='step name';
-          inp.oninput=()=>{ cur[i]=inp.value; };
+          const inp=document.createElement('input'); inp.value=st.name; inp.placeholder='step name';
+          inp.oninput=()=>{ st.name=inp.value; };
+          const up=document.createElement('button'); up.className='mv'; up.textContent='▲';
+          up.title='Move left'; up.disabled=i===0;
+          up.onclick=()=>{ [cur[i-1],cur[i]]=[cur[i],cur[i-1]]; redraw(); };
+          const dn=document.createElement('button'); dn.className='mv'; dn.textContent='▼';
+          dn.title='Move right'; dn.disabled=i===cur.length-1;
+          dn.onclick=()=>{ [cur[i+1],cur[i]]=[cur[i],cur[i+1]]; redraw(); };
           const rm=document.createElement('button'); rm.textContent='✕'; rm.title='Remove step';
           rm.onclick=()=>{ cur.splice(i,1); redraw(); };
-          row.append(inp,rm); wrap.appendChild(row);
+          row.append(inp,up,dn,rm); wrap.appendChild(row);
         });
         const add=document.createElement('button');
         add.innerHTML='<span class="em">＋</span><span>Add a step</span>';
-        add.onclick=()=>{ cur.push('Stap '+(cur.length+1)); redraw(); };
+        add.onclick=()=>{ cur.push({name:'Step '+(cur.length+1),from:-1}); redraw(); };
         const ok=document.createElement('button');
         ok.innerHTML='<span class="em">✓</span><span>Apply</span>';
-        ok.onclick=()=>{ applyStages(l,cur.map(x=>x.trim()).filter(Boolean)); closePop(); };
+        ok.onclick=()=>{
+          const kept=cur.map(x=>({name:x.name.trim(),from:x.from})).filter(x=>x.name);
+          applyStages(l,kept.map(x=>x.name),kept.map(x=>x.from));
+          closePop();
+        };
         wrap.append(add,ok);
         wrap.insertAdjacentHTML('beforeend',
           '<div class="hd" style="text-transform:none;letter-spacing:0;font-size:11px;line-height:1.5;color:var(--faint)">'
           +(chained(l)
             ? 'In order: marking a later step also marks everything before it.'
-            : 'Independent: ticking one step changes nothing else on that row.')+'</div>');
+            : 'Independent: ticking one step changes nothing else on that row.')
+          +' Use ▲▼ to change the column order — the numbers move along.</div>');
       }
       place();
     };
