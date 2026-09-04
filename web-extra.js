@@ -275,7 +275,7 @@ function reportHtml(l, opts) {
     const q = qtyOf(t);
     const cells = s.stages
       ? s.stages.map((_, i) => { const c = stCount(t, i), full = c >= q;
-          return `<td class="num ${full ? 'ok' : c > 0 ? 'part' : 'no'}">${q > 1 ? c + '/' + q : full ? '✓' : '—'}</td>`; }).join('')
+          return `<td class="num ${full ? 'ok' : c > 0 ? 'part' : 'no'}">${c}/${q}</td>`; }).join('')
       : `<td class="num ${t.done ? 'ok' : 'no'}">${t.done ? '✓' : '—'}</td>`;
     return `<tr class="${t.done ? 'done' : ''}">${o.qty ? `<td class="qty">${t.qty != null && t.qty !== '' ? esc(t.qty) + '×' : ''}</td>` : ''}
       <td class="name">${esc(t.text)}</td>${cells}${o.notes ? `<td class="note">${esc(t.note || '')}</td>` : ''}</tr>`;

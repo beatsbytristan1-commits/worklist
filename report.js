@@ -73,8 +73,7 @@ function html(list, opts, meta = {}) {
             .map((_, i) => {
               const c = stCount(t, i);
               const full = c >= q;
-              const label = q > 1 ? `${c}/${q}` : full ? '✓' : '—';
-              return `<td class="num ${full ? 'ok' : c > 0 ? 'part' : 'no'}">${label}</td>`;
+              return `<td class="num ${full ? 'ok' : c > 0 ? 'part' : 'no'}">${c}/${q}</td>`;
             })
             .join('')
         : `<td class="num ${t.done ? 'ok' : 'no'}">${t.done ? '✓' : '—'}</td>`;
