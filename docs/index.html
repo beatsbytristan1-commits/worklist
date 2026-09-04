@@ -377,13 +377,6 @@
 
   .stages{display:flex;gap:6px;flex:none;margin-top:1px}
   .stages .col{width:52px;display:grid;place-items:center}
-  .sbox{width:20px;height:20px;border-radius:7px;border:1.6px solid var(--line2);display:grid;place-items:center;
-    transition:.15s;cursor:pointer}
-  .sbox:hover{border-color:var(--accent)}
-  .sbox svg{opacity:0;transform:scale(.5);transition:.18s cubic-bezier(.2,1.4,.4,1)}
-  .sbox.on svg{opacity:1;transform:scale(1)}
-  .sbox.on{background:var(--accent);border-color:var(--accent)}
-  .sbox.on.last{background:var(--good);border-color:var(--good);box-shadow:0 0 10px rgba(51,214,159,.35)}
 
   .cbox{width:46px;height:22px;border-radius:8px;border:1.6px solid var(--line2);position:relative;
     overflow:hidden;font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--muted);
@@ -394,6 +387,8 @@
   .cbox span{position:relative;z-index:1}
   .cbox.full{border-color:var(--accent);color:#fff}
   .cbox.full.last{border-color:var(--good)}
+  .cbox.full .fill{background:hsl(212 70% 55% / .55)}
+  .cbox.full.last .fill{background:hsl(158 68% 45% / .5)}
 
   .pop .step{display:flex;align-items:center;gap:8px;padding:6px 10px}
   .pop .step button.pm{width:32px;height:32px;justify-content:center;border:1px solid var(--line2);
@@ -966,12 +961,9 @@ function taskEl(t){
     <span class="grip">⠿</span>
     ${STG ? `<div class="stages">${STG.map((nm,i)=>{
         const q=qtyOf(t), c=stCount(t,i), last=i===STG.length-1;
-        if(q>1) return `<div class="col"><button class="cbox${c>=q?' full':''}${last?' last':''}" data-s="${i}"
-            title="${esc(nm)} — ${c} of ${q}, click to change">
+        return `<div class="col"><button class="cbox${c>=q?' full':''}${last?' last':''}" data-s="${i}"
+            title="${esc(nm)} — ${c} of ${q}${q>1?', click to change':''}">
             <div class="fill" style="width:${Math.round(c/q*100)}%"></div><span>${c}/${q}</span></button></div>`;
-        return `<div class="col"><button class="sbox${c>=q?' on':''}${last?' last':''}" data-s="${i}" title="${esc(nm)}">
-          <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6.4l2.6 2.6L10 3.4" fill="none" stroke="#07130d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button></div>`;
       }).join('')}</div>`
       : `<div class="check"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6.4l2.6 2.6L10 3.4" fill="none" stroke="#08130e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`}
     ${(t.qty!=null&&t.qty!=='')
@@ -991,11 +983,12 @@ function taskEl(t){
     </div>`;
   const ck=el.querySelector('.check');
   if(ck) ck.onclick=()=>{ t.done=!t.done; t.doneAt=t.done?Date.now():0; save(); render(); };
-  el.querySelectorAll('.sbox').forEach(b=>{
-    b.onclick=()=>{ setStage(t,+b.dataset.s,STG.length); save(); render(); };
-  });
   el.querySelectorAll('.cbox').forEach(b=>{
-    b.onclick=e=>{ e.stopPropagation(); countPopover(b,t,+b.dataset.s,STG.length); };
+    // one of a kind: a single click is enough. More than one: open the counter.
+    b.onclick=e=>{ e.stopPropagation();
+      if(qtyOf(t)<=1){ setStage(t,+b.dataset.s,STG.length); save(); render(); }
+      else countPopover(b,t,+b.dataset.s,STG.length);
+    };
   });
   const txt=el.querySelector('.txt');
   txt.onblur=()=>{ const v=txt.textContent.trim(); if(!v){ del(t); return; } if(v!==t.text){ t.text=v; save(); } };
